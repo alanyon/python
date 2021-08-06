@@ -1,0 +1,13 @@
+# Use this file to create a conda environment using:
+# conda env create --file envs/environment_py37_iris24.yml
+
+name: taf_monitor_py37
+channels:
+  - conda-forge
+dependencies:
+  - python=3.7
+  # Required
+  - pyside2
+  - numpy
+  - black
+  - isort

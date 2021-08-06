@@ -1,0 +1,234 @@
+#!/usr/bin/bash
+#------------------------------------------------------------------------------
+# (C) British Crown Copyright 2018-2019 Met Office.
+# All rights reserved.
+#
+# This file is part of TAF Monitor.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+#
+# * Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#------------------------------------------------------------------------------
+# NAME
+#    taf_monitor tests - Run taf_monitor self-tests
+#
+# SYNOPSIS
+#    taf_monitor tests
+#
+# DESCRIPTION
+#    Launch all taf_monitor self-tests.
+#------------------------------------------------------------------------------
+
+set -eu
+
+function echo_ok {
+    echo -e "\033[1;32m[OK]\033[0m $1"
+}
+
+function echo_fail {
+    echo -e "\033[1;31m[FAIL]\033[0m $1"
+}
+
+function get_python_files {
+    FILES_TO_TEST=`find $TM_DIR -type f \( -name '*.py' \
+                                               ! -name '*~' \)`
+}
+function licence_check {
+    # Iterate through files to check whether they contain the expected
+    # licence information. If any files do not contain the expected licence
+    # information, then this test will fail.
+read -d '' expected <<'__TEXT__' || true
+# (C) British Crown Copyright 2018-2019 Met Office.
+# All rights reserved.
+#
+# This file is part of TAF Monitor.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+#
+# * Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+__TEXT__
+
+    FILES_TO_TEST=$@
+
+    count=0
+    for FILE in $FILES_TO_TEST; do
+        # Check whether file has a size greater than zero.
+        if [[ -s $FILE ]]; then
+            file_contents=$(<$FILE)
+            if [[ "$file_contents" != *"$expected"* ]]; then
+                echo "Unexpected licence information: ${FILE#$TM_DIR}"
+                count=$((count+1))
+            fi
+        fi
+    done
+    if (( $count > 0 )); then
+        echo_fail "TAF Monitor licences"
+        exit 1
+    fi
+}
+
+function taf_monitor_test_licence {
+    # utf8 and BSD 3-clause licence testing.
+    licence_check $FILES_TO_TEST
+    echo_ok "TAF Monitor licences"
+}
+
+function taf_monitor_test_isort {
+    # isort import ordering testing.
+    ${ISORT:-isort} $FILES_TO_TEST
+    echo_ok "isort"
+}
+
+function taf_monitor_test_black {
+    # Black formatting testing.
+    ${BLACK:-black} $FILES_TO_TEST
+    echo_ok "black"
+}
+
+function taf_monitor_test_pylint {
+    # Pylint score generation.
+    ${PYLINT:-pylint} --rcfile=etc/pylintrc $FILES_TO_TEST
+}
+
+function taf_monitor_test_pylintE {
+    # Pylint obvious-errors-only testing.
+    ${PYLINT:-pylint} -E --rcfile=etc/pylintrc --extension-pkg-whitelist=PySide2 $FILES_TO_TEST
+    echo_ok "pylint -E"
+}
+
+function taf_monitor_test_doc {
+    # Build documentation as test.
+    cd $TM_DIR
+    sphinx-apidoc -M -o doc/source taf_monitor taf_monitor/tests
+    cd $TM_DIR/doc
+    make SPHINXBUILD=${SPHINXBUILD:-sphinx-build} html 1>/dev/null
+    echo_ok "sphinx-build -b html"
+    cd -
+}
+
+function taf_monitor_test_unit {
+    # Unit tests.
+    if [[ -n $DEBUG_OPT ]]; then
+        VERBOSE_OPT='-v'
+    fi
+    nosetests ${VERBOSE_OPT:-} $TM_DIR/taf_monitor/tests/unit
+    echo_ok "Unit tests"
+}
+
+function taf_monitor_test_acceptance {
+    # acceptance tests.
+    if [[ -n $DEBUG_OPT ]]; then
+        VERBOSE_OPT='-v'
+    fi
+    python $TM_DIR/taf_monitor/tests/acceptance/acceptance_tests.py ${VERBOSE_OPT:-}
+    echo_ok "Acceptance tests"
+}
+
+function print_usage {
+    # Output CLI usage information.
+    cat <<'__USAGE__'
+taf_monitor tests [OPTIONS] [SUBTEST...]
+
+Run isort, black, pylint, documentation and unit tests
+
+Optional arguments:
+    --debug         Run in verbose mode
+    -h, --help      Show this message and exit
+
+Arguments:
+    SUBTEST         Name(s) of a subtest to run without running the rest.
+                    Valid names are: isort, black, pylint, pylintE, licence,
+                    doc, unit, and acceptance. isort, black, pylintE, licence,
+                    doc, unit and acceptance are the default tests.
+__USAGE__
+}
+
+TEST_INPUT_PWD=$(cd $PWD && pwd -P)
+cd $TM_DIR
+
+DEBUG_OPT=
+SUBTESTS=
+for arg in "$@"; do
+    case $arg in
+        --debug)
+        DEBUG_OPT='--debug'
+        ;;
+        -h|--help)
+        print_usage
+        exit 0
+        ;;
+        isort|black|pylint|pylintE|licence|doc|unit|acceptance)
+        SUBTESTS="$SUBTESTS $arg"
+        ;;
+        *)
+        print_usage
+        exit 2
+        ;;
+    esac
+done
+
+if [[ -n "$SUBTESTS" ]]; then
+    # Custom selection of tests.
+    TESTS="$SUBTESTS"
+else
+    # Default tests.
+  TESTS="isort black pylintE licence unit acceptance"
+fi
+
+
+
+# Build a list of python files throughout TAF Monitor.
+FILES_TO_TEST=''
+get_python_files
+
+for TEST_NAME in $TESTS; do
+    "taf_monitor_test_$TEST_NAME" "$DEBUG_OPT" "$@"
+done
+
+if [[ -z "$SUBTESTS" ]]; then
+    echo_ok "All tests passed."
+fi

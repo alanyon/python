@@ -1,0 +1,97 @@
+#!/usr/bin/bash
+#------------------------------------------------------------------------------
+# (C) British Crown Copyright 2018-2019 Met Office.
+# All rights reserved.
+#
+# This file is part of TAF Monitor.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+#
+# * Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#------------------------------------------------------------------------------
+# NAME
+#    taf_monitor - Monitoring TAFs for compliance with METAR observations.
+#
+# SYNOPSIS
+#    taf_monitor help                     # Generic help across operations
+#    taf_monitor help OPERATION           # Specific help for a particular operation
+#
+# DESCRIPTION
+#    Launch particular operations for taf_monitor. This script is a central
+#    launcher for all taf_monitor subcommands (taf_monitor-xxxx) and central help.
+#
+# ENVIRONMENT
+#    TM_SITE_INIT     # override default location for etc/site-init file
+#------------------------------------------------------------------------------
+
+set -eu
+
+export TM_DIR="$(cd $(dirname $0)/../ && pwd -P)"
+
+# List all taf_monitor subcommands or operations.
+get_operations() {
+    cd "$TM_DIR/bin/"
+    ls taf_monitor-*[^~] | sort | sed "s/^taf_monitor-//"
+}
+
+# Print generic or operation specific help.
+print_help() {
+    OPER=${1:-}
+    if [[ -n "$OPER" ]] && [[ $OPER != all ]]; then
+        # Operation-specific help.
+        "$TM_DIR/bin/taf_monitor" "$OPER" --help
+    else
+        # General help.
+        sed -n '/^# NAME/,/^#---/{/^#\-/d; s/^#//; s/^ //; p}' "$0"
+        echo
+        echo "OPERATIONS"
+        get_operations | sed "s/^/   taf_monitor /"
+    fi
+}
+
+
+HELP_TARGET=all
+if (($# == 0)); then
+    print_help
+    exit 0
+fi
+if [[ $1 == help ]] || [[ $1 == --help ]]; then
+    print_help ${2:-}
+    exit 0
+fi
+
+OPER=$1
+shift
+
+# Apply site-specific setup if necessary.
+if [[ -f "${TM_SITE_INIT:=$TM_DIR/etc/site-init}" ]]; then
+    . "$TM_SITE_INIT"
+fi
+
+# Put our library and scripts in the paths.
+export PYTHONPATH="$TM_DIR/taf_monitor:${PYTHONPATH:-}"
+export PATH="$TM_DIR/bin/:$PATH"
+
+exec taf_monitor-$OPER "$@"
