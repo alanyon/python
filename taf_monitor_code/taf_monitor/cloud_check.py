@@ -58,7 +58,7 @@ class cloud(object):
 
     def check(self, base_cloud, tempo_cloud, metar_cloud):
 
-        cloud_ok, cloud_ok_base, cloud_ok_tempo = True, True, True
+        cloud_ok, cloud_ok_base, cloud_ok_tempo = True, True, 'No TEMPO'
 
         all_taf_cloud = base_cloud + tempo_cloud
 

@@ -58,7 +58,10 @@ class wind(object):
 
         # Wind satisfied by base conditions, no further checking required.
         if wind_ok and wind_angle:
-            return True, True, True
+            if tempo_wind:
+                return True, True, True
+            else:
+                return True, True, 'No TEMPO'
 
         # As angle and speed may be covered by two separate groups they must
         # be considered separately.
@@ -94,8 +97,12 @@ class wind(object):
                 # one whilst the base covers the other.
                 if (wind_ok or wind_ok_base) and (wind_angle or wind_angle_base):
                     return True, False, True
+
         # Base doesn't cover wind, and no tempo groups to save taf.
-        return False, False, False
+        if tempo_wind:
+            return False, False, False
+        else:
+            return False, False, 'No TEMPO'
 
     # Break down wind term into component parts; angle, mean speed, gusts.
     def wind_extract(self, wind_in):

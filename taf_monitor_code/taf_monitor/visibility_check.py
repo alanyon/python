@@ -44,8 +44,6 @@ class visibility(object):
 
     def check(self, base_visibility, tempo_visibility, metar_visibility):
 
-        vis_ok = False
-
         # Check base and TEMPOs together
         visibilities = sorted(
             [int(item) for item in (base_visibility + tempo_visibility)]
@@ -73,7 +71,7 @@ class visibility(object):
             vis_ok_tempo = vis_min_tempo <= int(metar_visibility[0]) < vis_max_tempo
 
         else:
-            vis_ok_tempo = False
+            vis_ok_tempo = 'No TEMPO'
 
         return vis_ok, vis_ok_base, vis_ok_tempo
 

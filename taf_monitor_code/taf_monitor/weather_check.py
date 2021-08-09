@@ -50,7 +50,10 @@ class weather(object):
                                         base_weather=base_weather)
 
         # Check just TEMPOs
-        weather_ok_tempo = self.wx_check(metar_weather, tempo_weather)
+        if tempo_weather:
+            weather_ok_tempo = self.wx_check(metar_weather, tempo_weather)
+        else:
+            weather_ok_tempo = 'No TEMPO'
 
         return weather_ok, weather_ok_base, weather_ok_tempo
 

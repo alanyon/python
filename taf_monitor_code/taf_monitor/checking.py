@@ -54,11 +54,12 @@ all_airfields = define_airfields()
 class CheckTafThread():
 
     def __init__(self, bench_selected, start_time, taf_start_time,
-                 taf_end_time):
+                 taf_end_time, all_tafs):
         self.bench_selected = bench_selected
         self.start_time = start_time
         self.taf_start_time = taf_start_time
         self.taf_end_time = taf_end_time
+        self.all_tafs = all_tafs
 
     def time_in_seconds(self, td):
         return (
@@ -66,7 +67,8 @@ class CheckTafThread():
         ) / 10 ** 6
 
     @staticmethod
-    def create_obs_list(airfields, start_time, taf_start_time, taf_end_time):
+    def create_obs_list(airfields, start_time, taf_start_time, taf_end_time,
+                        all_tafs):
 
         GetObs = RetrieveObservations
         obs_list = []
@@ -102,7 +104,8 @@ class CheckTafThread():
                 ).TAF()
 
                 # If same as TAF being looked for, use it
-                if taf_start == taf_start_time and taf_end == taf_end_time:
+                if (taf_start == taf_start_time and taf_end == taf_end_time
+                        and taf not in all_tafs):
                     use_taf = taf
                     break
 
@@ -154,7 +157,8 @@ class CheckTafThread():
         metars_bust = []
 
         obs_list = self.create_obs_list(airfields, self.start_time,
-                                        self.taf_start_time, self.taf_end_time)
+                                        self.taf_start_time, self.taf_end_time,
+                                        self.all_tafs)
 
         for ii, (icao, metars, taf) in enumerate(obs_list):
 
@@ -162,12 +166,16 @@ class CheckTafThread():
 
                 # Check if airfield is helicopter station.
                 airfield = all_airfields[icao]
+                print('====================================================')
+                print('')
+                print('taf', taf)
 
                 # Simplify TAF groups to just BECMG and TEMPO.
                 taf = Simplify_TAF().by_group(taf)
-
                 print('')
-                print('taf', taf)
+                print('simple taf', taf)
+                print('')
+                print('metar', metar)
                 print('')
 
                 # Get TAF validity time as python datetime object.
@@ -269,9 +277,6 @@ class CheckTafThread():
                 # Calls a checking routine for each of the condition_type to
                 # determine taf status.
                 if valid_metar:
-                    print('')
-                    print('metar', metar)
-                    print('')
                     (base_ok_wind,
                      tempo_ok_wind) = self.check_condition(wind, "wind",
                                                            airfield)
@@ -291,7 +296,7 @@ class CheckTafThread():
                             base_ok, tempo_ok = base_ok_wind, tempo_ok_wind
                         elif item == 'visibility':
                             base_ok, tempo_ok = base_ok_vis, tempo_ok_vis
-                        elif item == 'visibility':
+                        elif item == 'weather':
                             base_ok, tempo_ok = base_ok_wx, tempo_ok_wx
                         elif item == 'cloud':
                             base_ok, tempo_ok = base_ok_cld, tempo_ok_cld
@@ -317,20 +322,18 @@ class CheckTafThread():
                             if not base_ok:
                                 msg += ' (base conditions'
                                 if not tempo_ok:
-                                    msg += ' and TEMPO/PROB group)'
+                                    msg += ' and TEMPO/PROB group broken)'
+                                elif tempo_ok == 'No TEMPO':
+                                    msg += ' broken, no TEMPO/PROB group)'
+                                # If tempo_okay anything else, TAF should be
+                                # covered so problem somewhere
                                 else:
-                                    msg += ')'
-                            elif not tempo:
-                                msg += ' (TEMPO/PROB group)'
+                                    msg += ' ** problem with code - check **)'
 
                             summary.append(msg)
                 else:
                     summary.append(str(icao) + " METAR Invalid")
 
                 metars_bust.append([metar, bust, base_bust])
-
-            print('')
-            print('------------------------------------------------')
-            print('')
 
         return summary, metars_bust
